@@ -1,10 +1,19 @@
 {
-  "name": "shared",
+  "name": "@qulify/shared",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Shared TypeScript domain types for Qulify.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
