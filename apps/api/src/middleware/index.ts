@@ -1,0 +1,1 @@
+export { tenantMiddleware } from './tenant';
