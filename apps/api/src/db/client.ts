@@ -1,12 +1,16 @@
-import { Pool } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
-import * as schema from './schema';
+// apps/api/src/db/client.ts
+import { neon } from '@neondatabase/serverless'
+import { drizzle } from 'drizzle-orm/neon-http'
+import * as schema from './schema'
 
-// Create a Drizzle instance from a Neon connection pool
-export const createDb = (env: Env) => {
-  const pool = new Pool({ connectionString: env.DATABASE_URL });
-  return drizzle(pool, { schema });
-};
+/**
+ * Creates a Drizzle database instance using Neon's HTTP driver.
+ * We use the HTTP driver (not Pool) because Cloudflare Workers
+ * don't support persistent TCP connections — HTTP works everywhere.
+ */
+export const createDb = (databaseUrl: string) => {
+  const sql = neon(databaseUrl)
+  return drizzle(sql, { schema })
+}
 
-// For convenience, we can also export the schema
-export * from './schema';
+export type DbInstance = ReturnType<typeof createDb>
