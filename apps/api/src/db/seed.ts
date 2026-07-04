@@ -24,7 +24,7 @@ async function seed() {
     priceMax: 800000,
     agentName: 'John Smith',
     agentWhatsapp: '+15551234567',
-    agentEmail: 'john@austinrealty.com',
+    agentEmail: 'farjazkashif01@gmail.com',
     widgetConfig: {
       primaryColor: '#2563eb',
       welcomeMessage: 'Hi! Looking to buy or sell in Austin?',

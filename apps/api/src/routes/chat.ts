@@ -2,11 +2,10 @@
 import { Hono } from 'hono'
 import { createGroqClient } from '../ai/groq-client'
 import { buildSystemPrompt } from '../ai/prompts'
-import { createDb } from '../db'
+import { createConversation, saveMessage, scoreLead, notifyAgent } from '../services'
 import type { Business } from '../db/schema'
 
-// Groq has a 4096 token limit — we keep last 10 messages
-// to stay within limits while maintaining conversation flow
+// Keep last 10 messages to stay within Groq's token limit
 const MAX_MESSAGES = 10
 
 type ChatMessage = {
@@ -15,36 +14,71 @@ type ChatMessage = {
 }
 
 type Env = {
-  DATABASE_URL: string
-  GROQ_API_KEY: string
+  Bindings: {
+    DATABASE_URL: string
+    GROQ_API_KEY: string
+    OPENAI_API_KEY: string
+    RESEND_API_KEY: string
+    RESEND_FROM_EMAIL: string
+  }
+  Variables: {
+    business: Business
+  }
 }
 
-const chat = new Hono<{ Bindings: Env; Variables: { business: Business } }>()
+const chat = new Hono<Env>()
 
 /**
- * POST /chat
- * Receives a visitor message and returns an AI response.
- * Expects: { message: string, history: ChatMessage[] }
- * Returns: { reply: string }
+ * POST /chat/start
+ * Called when a visitor opens the chat bubble for the first time.
+ * Creates a lead + conversation record in DB and returns IDs for the session.
  */
-chat.post('/', async (c) => {
+chat.post('/start', async (c) => {
   try {
     const business = c.get('business')
-    const { message, history = [] } = await c.req.json<{
+
+    const { leadId, conversationId } = await createConversation(
+      c.env.DATABASE_URL,
+      business
+    )
+
+    return c.json({ success: true, leadId, conversationId })
+
+  } catch (error) {
+    console.error('[chat/start] Error:', error)
+    return c.json({ success: false, error: 'Failed to start conversation' }, 500)
+  }
+})
+
+/**
+ * POST /chat/message
+ * Main chat endpoint. Receives visitor message, returns AI reply.
+ * Saves messages to DB and triggers async scoring after each turn.
+ * Expects: { message, history, conversationId, leadId }
+ */
+chat.post('/message', async (c) => {
+  try {
+    const business = c.get('business')
+    const { message, history = [], conversationId, leadId } = await c.req.json<{
       message: string
       history: ChatMessage[]
+      conversationId: string
+      leadId: string
     }>()
 
     if (!message?.trim()) {
       return c.json({ success: false, error: 'Message is required' }, 400)
     }
 
+    if (!conversationId || !leadId) {
+      return c.json({ success: false, error: 'Missing conversationId or leadId' }, 400)
+    }
+
     const groq = createGroqClient(c.env.GROQ_API_KEY)
     const systemPrompt = buildSystemPrompt(business)
-
-    // Keep only recent messages to stay within token limits
     const recentHistory = history.slice(-MAX_MESSAGES)
 
+    // Get AI reply from Groq
     const response = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages: [
@@ -61,10 +95,37 @@ chat.post('/', async (c) => {
       return c.json({ success: false, error: 'No response from AI' }, 500)
     }
 
+    // Save both messages to DB (visitor + assistant)
+    await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'visitor', message)
+    await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'assistant', reply)
+
+    // Score the lead async after every message — don't await, don't block the reply
+    // We use waitUntil so Cloudflare Workers doesn't kill the async task early
+    const fullHistory = [...recentHistory, { role: 'user', content: message }, { role: 'assistant', content: reply }]
+
+    c.executionCtx.waitUntil(
+      scoreLead(c.env.DATABASE_URL, c.env.OPENAI_API_KEY, leadId, fullHistory)
+        .then(async (score) => {
+          // Only notify agent if lead is hot or warm
+          if (score.score !== 'cold') {
+            await notifyAgent(
+              c.env.DATABASE_URL,
+              c.env.RESEND_API_KEY,
+              c.env.RESEND_FROM_EMAIL,
+              business,
+              leadId,
+              fullHistory,
+              score
+            )
+          }
+        })
+        .catch((err) => console.error('[chat/message] Async scoring failed:', err))
+    )
+
     return c.json({ success: true, reply })
 
   } catch (error) {
-    console.error('[chat] Error:', error)
+    console.error('[chat/message] Error:', error)
     return c.json({ success: false, error: 'Something went wrong' }, 500)
   }
 })

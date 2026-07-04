@@ -1,4 +1,11 @@
+# apps/api/wrangler.toml
 name = "qulify-api"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
+
+[vars]
+DATABASE_URL = ""
+GROQ_API_KEY = ""
+OPENAI_API_KEY = ""
+RESEND_FROM_EMAIL = "onboarding@resend.dev"
