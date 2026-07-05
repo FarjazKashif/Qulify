@@ -30,3 +30,31 @@ export {
   businessConfigSchema,
   type BusinessConfigInput,
 } from './schemas/business'
+
+export {
+  conversationChannelSchema,
+  chatMessageRoleSchema,
+  chatMessageSchema,
+  chatRequestSchema,
+  chatResponseSchema,
+  type ChatRequestInput,
+  type ChatResponseInput,
+} from './schemas/chat'
+
+export {
+  leadIntentSchema,
+  leadScoreSchema,
+  leadStatusSchema,
+  propertyTypeSchema,
+  timelineSchema,
+  leadProfileSchema,
+  qualifiedLeadSchema,
+  type LeadProfileInput,
+  type QualifiedLeadInput,
+} from './schemas/lead'
+
+export {
+  qualificationStepSchema,
+  qualificationStateSchema,
+  type QualificationStateInput,
+} from './schemas/qualification'
