@@ -68,5 +68,19 @@ export const qualifiedLeadSchema = leadProfileSchema.extend({
   createdAt: isoDateTimeSchema,
 });
 
+/**
+ * Validates the raw JSON response from GPT-4o-mini's lead scoring call.
+ * This is an AI JSON response trust boundary, same category as
+ * leadProfileSchema — but unlike lead capture (where partial data is
+ * still useful), a malformed scoring result has no safe partial use,
+ * so on failure the caller should fall back to a default score rather
+ * than write unvalidated data to the DB.
+ */
+export const scoringResultSchema = z.object({
+  score: leadScoreSchema,
+  reason: nonEmptyStringSchema(500),
+});
+
+export type ScoringResultInput = z.infer<typeof scoringResultSchema>;
 export type LeadProfileInput = z.infer<typeof leadProfileSchema>;
 export type QualifiedLeadInput = z.infer<typeof qualifiedLeadSchema>;

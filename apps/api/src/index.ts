@@ -2,7 +2,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { tenantMiddleware } from './middleware/tenant'
-import { chat } from './routes'
+import { chat, business } from './routes'
 
 type Env = {
   Bindings: {
@@ -24,5 +24,6 @@ app.get('/', (c) => {
 
 app.use('/chat/*', tenantMiddleware)
 app.route('/chat', chat)
+app.route('/business', business)
 
 export default app

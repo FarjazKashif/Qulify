@@ -25,10 +25,15 @@ export {
   nonEmptyStringSchema,
   isoDateTimeSchema,
 } from './schemas/common'
+
 export {
   widgetBrandingSchema,
   businessConfigSchema,
+  businessConfigCreateSchema,
+  businessConfigUpdateSchema,
   type BusinessConfigInput,
+  type BusinessConfigCreateInput,
+  type BusinessConfigUpdateInput,
 } from './schemas/business'
 
 export {
@@ -53,6 +58,8 @@ export {
   timelineSchema,
   leadProfileSchema,
   qualifiedLeadSchema,
+  scoringResultSchema,
+  type ScoringResultInput,
   type LeadProfileInput,
   type QualifiedLeadInput,
 } from './schemas/lead'

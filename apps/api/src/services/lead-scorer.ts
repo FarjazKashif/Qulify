@@ -4,13 +4,7 @@ import { buildScoringPrompt } from '../ai/prompts'
 import { createDb } from '../db'
 import { leads } from '../db/schema'
 import { eq } from 'drizzle-orm'
-
-type LeadScore = 'hot' | 'warm' | 'cold'
-
-type ScoringResult = {
-  score: LeadScore
-  reason: string
-}
+import { scoringResultSchema, type ScoringResultInput } from '@qulify/shared'
 
 /**
  * Scores a lead as hot/warm/cold using GPT-4o-mini.
@@ -22,7 +16,7 @@ export const scoreLead = async (
   openAiApiKey: string,
   leadId: string,
   conversationHistory: { role: string; content: string }[]
-): Promise<ScoringResult> => {
+): Promise<ScoringResultInput> => {
   try {
     const client = new OpenAI({ apiKey: openAiApiKey })
 
@@ -49,7 +43,14 @@ export const scoreLead = async (
     const raw = response.choices[0]?.message?.content
     if (!raw) throw new Error('No scoring response')
 
-    const result = JSON.parse(raw) as ScoringResult
+     const parsed = scoringResultSchema.safeParse(JSON.parse(raw))
+
+    if (!parsed.success) {
+      console.error('[lead-scorer] Invalid scoring response shape:', parsed.error.flatten())
+      return { score: 'warm', reason: 'Scoring response was malformed, defaulting to warm' }
+    }
+
+    const result = parsed.data
 
     // Update lead score in DB
     const db = createDb(databaseUrl)
