@@ -44853,6 +44853,9 @@ var scoringResultSchema = external_exports.object({
   score: leadScoreSchema,
   reason: nonEmptyStringSchema(500)
 });
+var leadStatusUpdateSchema = external_exports.object({
+  status: leadStatusSchema
+});
 
 // ../../packages/shared/src/schemas/qualification.ts
 init_checked_fetch();
@@ -50307,6 +50310,79 @@ businessRoutes.patch("/", tenantMiddleware, async (c) => {
 });
 var business_default = businessRoutes;
 
+// src/routes/lead.ts
+init_checked_fetch();
+init_modules_watch_stub();
+
+// src/services/lead.ts
+init_checked_fetch();
+init_modules_watch_stub();
+var getLeads = /* @__PURE__ */ __name(async (databaseUrl, businessId) => {
+  const db = createDb(databaseUrl);
+  return db.select().from(leads).where(eq(leads.businessId, businessId));
+}, "getLeads");
+var getLeadById = /* @__PURE__ */ __name(async (databaseUrl, businessId, leadId) => {
+  const db = createDb(databaseUrl);
+  const [lead] = await db.select().from(leads).where(and(eq(leads.id, leadId), eq(leads.businessId, businessId))).limit(1);
+  return lead;
+}, "getLeadById");
+var updateLeadStatus = /* @__PURE__ */ __name(async (databaseUrl, businessId, leadId, input) => {
+  const db = createDb(databaseUrl);
+  const [updated] = await db.update(leads).set({ status: input.status }).where(and(eq(leads.id, leadId), eq(leads.businessId, businessId))).returning();
+  return updated;
+}, "updateLeadStatus");
+
+// src/routes/lead.ts
+var leadRoutes = new Hono2();
+leadRoutes.use("*", tenantMiddleware);
+leadRoutes.get("/", async (c) => {
+  try {
+    const business = c.get("business");
+    const results = await getLeads(c.env.DATABASE_URL, business.id);
+    return c.json({ success: true, leads: results });
+  } catch (error51) {
+    console.error("[leads/list] Error:", error51);
+    return c.json({ success: false, error: "Failed to fetch leads" }, 500);
+  }
+});
+leadRoutes.get("/:id", async (c) => {
+  try {
+    const business = c.get("business");
+    const leadId = c.req.param("id");
+    const lead = await getLeadById(c.env.DATABASE_URL, business.id, leadId);
+    if (!lead) {
+      return c.json({ success: false, error: "Lead not found" }, 404);
+    }
+    return c.json({ success: true, lead });
+  } catch (error51) {
+    console.error("[leads/get] Error:", error51);
+    return c.json({ success: false, error: "Failed to fetch lead" }, 500);
+  }
+});
+leadRoutes.patch("/:id/status", async (c) => {
+  try {
+    const business = c.get("business");
+    const leadId = c.req.param("id");
+    const rawBody = await c.req.json();
+    const parseResult = leadStatusUpdateSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json(
+        { success: false, error: "Invalid request", details: parseResult.error.flatten() },
+        400
+      );
+    }
+    const updated = await updateLeadStatus(c.env.DATABASE_URL, business.id, leadId, parseResult.data);
+    if (!updated) {
+      return c.json({ success: false, error: "Lead not found" }, 404);
+    }
+    return c.json({ success: true, lead: updated });
+  } catch (error51) {
+    console.error("[leads/update-status] Error:", error51);
+    return c.json({ success: false, error: "Failed to update lead status" }, 500);
+  }
+});
+var lead_default = leadRoutes;
+
 // src/index.ts
 var app = new Hono2();
 app.use("*", cors());
@@ -50316,6 +50392,7 @@ app.get("/", (c) => {
 app.use("/chat/*", tenantMiddleware);
 app.route("/chat", chat_default);
 app.route("/business", business_default);
+app.route("/leads", lead_default);
 var src_default = app;
 
 // ../../node_modules/.pnpm/wrangler@4.103.0_@cloudflare+workers-types@4.20260621.1/node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts

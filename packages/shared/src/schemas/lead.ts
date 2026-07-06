@@ -81,6 +81,17 @@ export const scoringResultSchema = z.object({
   reason: nonEmptyStringSchema(500),
 });
 
+/**
+ * Validates the PATCH /leads/:id/status request body. Deliberately
+ * scoped to status only — score stays AI-owned via scoreLead, and
+ * broader edits (contact info corrections, manual score override)
+ * are a separate future concern, not bundled into this endpoint.
+ */
+export const leadStatusUpdateSchema = z.object({
+  status: leadStatusSchema,
+});
+
+export type LeadStatusUpdateInput = z.infer<typeof leadStatusUpdateSchema>;
 export type ScoringResultInput = z.infer<typeof scoringResultSchema>;
 export type LeadProfileInput = z.infer<typeof leadProfileSchema>;
 export type QualifiedLeadInput = z.infer<typeof qualifiedLeadSchema>;

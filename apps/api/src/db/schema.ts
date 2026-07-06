@@ -1,6 +1,6 @@
 import { pgTable, varchar, text, integer, boolean, timestamp, pgEnum, jsonb, uuid, real } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
-import { BusinessId } from '@qulify/business'
+import { BusinessId } from '@qulify/shared'
 
 // Enums
 export const leadIntentEnum = pgEnum('lead_intent', ['buy', 'sell', 'rent'])

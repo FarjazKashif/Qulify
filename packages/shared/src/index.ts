@@ -59,6 +59,8 @@ export {
   leadProfileSchema,
   qualifiedLeadSchema,
   scoringResultSchema,
+  leadStatusUpdateSchema,
+  type LeadStatusUpdateInput,
   type ScoringResultInput,
   type LeadProfileInput,
   type QualifiedLeadInput,
