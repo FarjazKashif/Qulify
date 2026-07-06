@@ -43,6 +43,7 @@ export const businesses = pgTable('businesses', {
     welcomeMessage: string
     assistantName: string
   }>(), // Widget branding/configuration
+  apiKeyHash: varchar('api_key_hash', { length: 255 }).notNull(), // SHA-256 hash of the business's API key
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 

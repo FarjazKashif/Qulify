@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { tenantMiddleware } from '../middleware/tenant'
-import { createBusiness, updateBusiness } from '../services/business'
+import { createBusiness, updateBusiness, sanitizeBusiness } from '../services/business'
 import {
   businessConfigCreateSchema,
   businessConfigUpdateSchema
@@ -30,9 +30,10 @@ businessRoutes.post('/', async (c) => {
       )
     }
 
-    const created = await createBusiness(c.env.DATABASE_URL, parseResult.data)
+    const { business: created, apiKey } = await createBusiness(c.env.DATABASE_URL, parseResult.data)
 
-    return c.json({ success: true, business: created })
+    // apiKey is shown here ONLY ONCE — it is never retrievable again after this response
+    return c.json({ success: true, business: sanitizeBusiness(created), apiKey })
 
   } catch (error) {
     console.error('[business/create] Error:', error)
@@ -42,7 +43,7 @@ businessRoutes.post('/', async (c) => {
 
 businessRoutes.get('/', tenantMiddleware, async (c) => {
   const currentBusiness = c.get('business')
-  return c.json({ success: true, business: currentBusiness })
+  return c.json({ success: true, business: sanitizeBusiness(currentBusiness) })
 })
 
 businessRoutes.patch('/', tenantMiddleware, async (c) => {
@@ -60,7 +61,7 @@ businessRoutes.patch('/', tenantMiddleware, async (c) => {
 
     const updated = await updateBusiness(c.env.DATABASE_URL, currentBusiness.id, parseResult.data)
 
-    return c.json({ success: true, business: updated })
+    return c.json({ success: true, business: sanitizeBusiness(updated) })
 
   } catch (error) {
     console.error('[business/update] Error:', error)
