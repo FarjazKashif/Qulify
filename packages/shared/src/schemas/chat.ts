@@ -14,6 +14,14 @@ export const conversationChannelSchema = z.enum(["web", "whatsapp"]);
 export const chatMessageRoleSchema = z.enum(["visitor", "assistant", "system"]);
 
 /**
+ * Maximum number of prior messages kept in conversation history sent
+ * to Groq. Single source of truth — shared between the route (which
+ * slices history before building the AI prompt) and this schema
+ * (which caps the incoming array length) so they can't drift apart.
+ */
+export const MAX_MESSAGES = 10;
+
+/**
  * Validates a stored chat message record.
  * Mirrors ChatMessage in chat.ts.
  */
@@ -51,6 +59,34 @@ export const chatResponseSchema = z.object({
   reply: chatMessageSchema,
   qualificationComplete: z.boolean(),
 });
+
+/**
+ * Validates a single message in the conversation history array sent
+ * with each POST /chat/message request. Leaner than chatMessageSchema
+ * (no id/businessId/createdAt) since this is the wire format the
+ * frontend sends, not a stored DB record.
+ */
+export const historyMessageSchema = z.object({
+  role: z.enum(["user", "assistant", "system"]),
+  content: nonEmptyStringSchema(4000),
+});
+
+/**
+ * Validates the actual POST /chat/message request body as implemented
+ * in apps/api/src/routes/chat.ts. businessId is intentionally absent —
+ * it comes from tenant middleware via c.get('business'), not the body.
+ * message is capped at 1500 chars for the same reason as chatRequestSchema:
+ * generous for real chat input, tight enough to block abuse payloads
+ * before they reach Groq.
+ */
+export const chatMessageRequestSchema = z.object({
+  message: nonEmptyStringSchema(1500),
+  history: z.array(historyMessageSchema).max(MAX_MESSAGES),
+  conversationId: z.string().uuid("conversationId must be a valid UUID"),
+  leadId: z.string().uuid("leadId must be a valid UUID"),
+});
+
+export type ChatMessageRequestInput = z.infer<typeof chatMessageRequestSchema>;
 
 export type ChatRequestInput = z.infer<typeof chatRequestSchema>;
 export type ChatResponseInput = z.infer<typeof chatResponseSchema>;

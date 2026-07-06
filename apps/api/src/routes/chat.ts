@@ -4,9 +4,7 @@ import { createGroqClient } from '../ai/groq-client'
 import { buildSystemPrompt } from '../ai/prompts'
 import { createConversation, saveMessage, scoreLead, notifyAgent } from '../services'
 import type { Business } from '../db/schema'
-
-// Keep last 10 messages to stay within Groq's token limit
-const MAX_MESSAGES = 10
+import { chatMessageRequestSchema, MAX_MESSAGES } from '@qulify/shared'
 
 type ChatMessage = {
   role: 'user' | 'assistant' | 'system'
@@ -59,20 +57,17 @@ chat.post('/start', async (c) => {
 chat.post('/message', async (c) => {
   try {
     const business = c.get('business')
-    const { message, history = [], conversationId, leadId } = await c.req.json<{
-      message: string
-      history: ChatMessage[]
-      conversationId: string
-      leadId: string
-    }>()
+    const rawBody = await c.req.json()
+    const parseResult = chatMessageRequestSchema.safeParse(rawBody)
 
-    if (!message?.trim()) {
-      return c.json({ success: false, error: 'Message is required' }, 400)
+    if (!parseResult.success) {
+      return c.json(
+        { success: false, error: 'Invalid request', details: parseResult.error.flatten() },
+        400
+      )
     }
 
-    if (!conversationId || !leadId) {
-      return c.json({ success: false, error: 'Missing conversationId or leadId' }, 400)
-    }
+    const { message, history, conversationId, leadId } = parseResult.data
 
     const groq = createGroqClient(c.env.GROQ_API_KEY)
     const systemPrompt = buildSystemPrompt(business)

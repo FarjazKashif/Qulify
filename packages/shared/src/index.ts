@@ -37,8 +37,12 @@ export {
   chatMessageSchema,
   chatRequestSchema,
   chatResponseSchema,
+  historyMessageSchema,
+  chatMessageRequestSchema,
+  MAX_MESSAGES,
   type ChatRequestInput,
   type ChatResponseInput,
+  type ChatMessageRequestInput,
 } from './schemas/chat'
 
 export {
