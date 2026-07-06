@@ -41,7 +41,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// .wrangler/tmp/bundle-GiF5n0/checked-fetch.js
+// .wrangler/tmp/bundle-juLl8t/checked-fetch.js
 function checkURL(request, init) {
   const url2 = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init) : request).url
@@ -59,7 +59,7 @@ function checkURL(request, init) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  ".wrangler/tmp/bundle-GiF5n0/checked-fetch.js"() {
+  ".wrangler/tmp/bundle-juLl8t/checked-fetch.js"() {
     "use strict";
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
@@ -901,11 +901,11 @@ var require_dist = __commonJS({
   }
 });
 
-// .wrangler/tmp/bundle-GiF5n0/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-juLl8t/middleware-loader.entry.ts
 init_checked_fetch();
 init_modules_watch_stub();
 
-// .wrangler/tmp/bundle-GiF5n0/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-juLl8t/middleware-insertion-facade.js
 init_checked_fetch();
 init_modules_watch_stub();
 
@@ -44887,6 +44887,25 @@ var qualificationStateSchema = external_exports.object({
   isPriceMatch: external_exports.boolean()
 });
 
+// ../../packages/shared/src/schemas/env.ts
+init_checked_fetch();
+init_modules_watch_stub();
+var envSchema = external_exports.object({
+  DATABASE_URL: external_exports.string().min(1, "DATABASE_URL is required").regex(/^postgres(ql)?:\/\//, "DATABASE_URL must be a valid Postgres connection string"),
+  GROQ_API_KEY: external_exports.string().min(1, "GROQ_API_KEY is required"),
+  OPENAI_API_KEY: external_exports.string().min(1, "OPENAI_API_KEY is required"),
+  RESEND_API_KEY: external_exports.string().min(1, "RESEND_API_KEY is required"),
+  RESEND_FROM_EMAIL: external_exports.string().email("RESEND_FROM_EMAIL must be a valid email address")
+});
+var validateEnv = /* @__PURE__ */ __name((rawEnv) => {
+  const result = envSchema.safeParse(rawEnv);
+  if (!result.success) {
+    const details = JSON.stringify(result.error.flatten().fieldErrors);
+    throw new Error(`Invalid environment configuration: ${details}`);
+  }
+  return result.data;
+}, "validateEnv");
+
 // src/services/lead-scorer.ts
 var scoreLead = /* @__PURE__ */ __name(async (databaseUrl, openAiApiKey, leadId, conversationHistory) => {
   try {
@@ -50386,6 +50405,15 @@ var lead_default = leadRoutes;
 // src/index.ts
 var app = new Hono2();
 app.use("*", cors());
+app.use("*", async (c, next) => {
+  try {
+    validateEnv(c.env);
+  } catch (error51) {
+    console.error("[env] Validation failed:", error51);
+    return c.json({ success: false, error: "Server misconfigured" }, 500);
+  }
+  await next();
+});
 app.get("/", (c) => {
   return c.json({ message: "Qulify API is live" });
 });
@@ -50440,7 +50468,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-GiF5n0/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-juLl8t/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -50474,7 +50502,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-GiF5n0/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-juLl8t/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
