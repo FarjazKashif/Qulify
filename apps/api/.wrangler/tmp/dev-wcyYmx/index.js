@@ -41,7 +41,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// .wrangler/tmp/bundle-RWETS7/checked-fetch.js
+// .wrangler/tmp/bundle-Tz3Ely/checked-fetch.js
 function checkURL(request, init) {
   const url2 = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init) : request).url
@@ -59,7 +59,7 @@ function checkURL(request, init) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  ".wrangler/tmp/bundle-RWETS7/checked-fetch.js"() {
+  ".wrangler/tmp/bundle-Tz3Ely/checked-fetch.js"() {
     "use strict";
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
@@ -901,11 +901,11 @@ var require_dist = __commonJS({
   }
 });
 
-// .wrangler/tmp/bundle-RWETS7/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-Tz3Ely/middleware-loader.entry.ts
 init_checked_fetch();
 init_modules_watch_stub();
 
-// .wrangler/tmp/bundle-RWETS7/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-Tz3Ely/middleware-insertion-facade.js
 init_checked_fetch();
 init_modules_watch_stub();
 
@@ -50247,6 +50247,24 @@ var notifyAgent = /* @__PURE__ */ __name(async (databaseUrl, resendApiKey, fromE
   }
 }, "notifyAgent");
 
+// src/services/rate-limit.ts
+init_checked_fetch();
+init_modules_watch_stub();
+var RATE_LIMIT_MAX = 20;
+var RATE_LIMIT_WINDOW_SECONDS = 60;
+var checkRateLimit = /* @__PURE__ */ __name(async (kv, conversationId) => {
+  const key = `ratelimit:${conversationId}`;
+  const current = await kv.get(key);
+  const count = current ? parseInt(current, 10) : 0;
+  if (count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  await kv.put(key, String(count + 1), {
+    expirationTtl: RATE_LIMIT_WINDOW_SECONDS
+  });
+  return true;
+}, "checkRateLimit");
+
 // src/routes/chat.ts
 var chat = new Hono2();
 chat.post("/start", async (c) => {
@@ -50274,6 +50292,13 @@ chat.post("/message", async (c) => {
       );
     }
     const { message, history, conversationId, leadId } = parseResult.data;
+    const allowed = await checkRateLimit(c.env.RATE_LIMIT_KV, conversationId);
+    if (!allowed) {
+      return c.json(
+        { success: false, error: "Too many messages. Please slow down." },
+        429
+      );
+    }
     const groq = createGroqClient(c.env.GROQ_API_KEY);
     const systemPrompt = buildSystemPrompt(business);
     const recentHistory = history.slice(-MAX_MESSAGES);
@@ -50501,7 +50526,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-RWETS7/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-Tz3Ely/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -50535,7 +50560,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-RWETS7/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-Tz3Ely/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

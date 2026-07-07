@@ -5,6 +5,7 @@ import { buildSystemPrompt } from '../ai/prompts'
 import { createConversation, saveMessage, scoreLead, notifyAgent } from '../services'
 import type { Business } from '../db/schema'
 import { chatMessageRequestSchema, MAX_MESSAGES } from '@qulify/shared'
+import { checkRateLimit } from '../services/rate-limit'
 
 type ChatMessage = {
   role: 'user' | 'assistant' | 'system'
@@ -18,6 +19,7 @@ type Env = {
     OPENAI_API_KEY: string
     RESEND_API_KEY: string
     RESEND_FROM_EMAIL: string
+    RATE_LIMIT_KV: KVNamespace
   }
   Variables: {
     business: Business
@@ -68,6 +70,15 @@ chat.post('/message', async (c) => {
     }
 
     const { message, history, conversationId, leadId } = parseResult.data
+
+    const allowed = await checkRateLimit(c.env.RATE_LIMIT_KV, conversationId)
+
+    if (!allowed) {
+      return c.json(
+        { success: false, error: 'Too many messages. Please slow down.' },
+        429
+      )
+    }
 
     const groq = createGroqClient(c.env.GROQ_API_KEY)
     const systemPrompt = buildSystemPrompt(business)

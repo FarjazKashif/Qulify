@@ -9,3 +9,7 @@ DATABASE_URL = ""
 GROQ_API_KEY = ""
 OPENAI_API_KEY = ""
 RESEND_FROM_EMAIL = "onboarding@resend.dev"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "f8fb28b069f04a39bdef74220f3dffd1"
