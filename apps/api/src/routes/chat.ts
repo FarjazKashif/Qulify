@@ -16,7 +16,7 @@ type Env = {
   Bindings: {
     DATABASE_URL: string
     GROQ_API_KEY: string
-    OPENAI_API_KEY: string
+    GEMINI_API_KEY: string
     RESEND_API_KEY: string
     RESEND_FROM_EMAIL: string
     RATE_LIMIT_KV: KVNamespace
@@ -110,7 +110,7 @@ chat.post('/message', async (c) => {
     const fullHistory = [...recentHistory, { role: 'user', content: message }, { role: 'assistant', content: reply }]
 
     c.executionCtx.waitUntil(
-      scoreLead(c.env.DATABASE_URL, c.env.OPENAI_API_KEY, leadId, fullHistory)
+      scoreLead(c.env.DATABASE_URL, c.env.GEMINI_API_KEY, leadId, fullHistory)
         .then(async (score) => {
           // Only notify agent if lead is hot or warm
           if (score.score !== 'cold') {

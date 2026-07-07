@@ -17,7 +17,7 @@ export const envSchema = z.object({
     .min(1, "DATABASE_URL is required")
     .regex(/^postgres(ql)?:\/\//, "DATABASE_URL must be a valid Postgres connection string"),
   GROQ_API_KEY: z.string().min(1, "GROQ_API_KEY is required"),
-  OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
+  GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required"),
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   RESEND_FROM_EMAIL: z.string().email("RESEND_FROM_EMAIL must be a valid email address"),
 });

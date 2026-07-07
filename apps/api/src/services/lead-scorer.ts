@@ -1,5 +1,4 @@
-// apps/api/src/services/lead-scorer.ts
-import OpenAI from 'openai'
+import { GoogleGenAI, Type } from '@google/genai'
 import { buildScoringPrompt } from '../ai/prompts'
 import { createDb } from '../db'
 import { leads } from '../db/schema'
@@ -7,66 +6,76 @@ import { eq } from 'drizzle-orm'
 import { scoringResultSchema, type ScoringResultInput } from '@qulify/shared'
 
 /**
- * Scores a lead as hot/warm/cold using GPT-4o-mini.
+ * Scores a lead as hot/warm/cold using Gemini (gemini-flash-latest).
  * Runs async after qualification — never blocks the chat response.
  * Updates the lead record in DB with the score.
  */
 export const scoreLead = async (
   databaseUrl: string,
-  openAiApiKey: string,
+  geminiApiKey: string,
   leadId: string,
   conversationHistory: { role: string; content: string }[]
 ): Promise<ScoringResultInput> => {
   try {
-    const client = new OpenAI({ apiKey: openAiApiKey })
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey })
 
-    // Build a summary of the conversation for scoring
     const conversationSummary = conversationHistory
       .filter(m => m.role !== 'system')
       .map(m => `${m.role}: ${m.content}`)
       .join('\n')
 
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: buildScoringPrompt(conversationSummary)
-        }
-      ],
-      // Response must be valid JSON for reliable parsing
-      response_format: { type: 'json_object' },
-      temperature: 0,
-      max_tokens: 100
+    const response = await ai.models.generateContent({
+      model: 'gemini-flash-latest',
+      contents: buildScoringPrompt(conversationSummary),
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            score: { type: Type.STRING, enum: ['hot', 'warm', 'cold'] },
+            reason: { type: Type.STRING }
+          },
+          required: ['score', 'reason']
+        },
+        thinkingConfig: {
+          thinkingBudget: 0
+        },
+        temperature: 0,
+        maxOutputTokens: 300
+      }
     })
 
-    const raw = response.choices[0]?.message?.content
+    const raw = response.text
     if (!raw) throw new Error('No scoring response')
 
-     const parsed = scoringResultSchema.safeParse(JSON.parse(raw))
+    // Even with responseSchema set, gemini-flash-latest sometimes adds a
+    // conversational preamble ("Here is the JSON:") before the actual
+    // object. Extract just the {...} block as a defensive fallback.
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error('No JSON object found in Gemini response: ' + raw)
+
+    const parsed = scoringResultSchema.safeParse(JSON.parse(jsonMatch[0]))
 
     if (!parsed.success) {
       console.error('[lead-scorer] Invalid scoring response shape:', parsed.error.flatten())
       return { score: 'warm', reason: 'Scoring response was malformed, defaulting to warm' }
     }
 
-    const result = parsed.data
+    const scoringResult = parsed.data
 
-    // Update lead score in DB
     const db = createDb(databaseUrl)
     await db
       .update(leads)
       .set({
-        score: result.score,
-        scoreReason: result.reason
+        score: scoringResult.score,
+        scoreReason: scoringResult.reason
       })
       .where(eq(leads.id, leadId))
 
-    return result
+    return scoringResult
 
   } catch (error) {
     console.error('[lead-scorer] Scoring failed:', error)
-    // Default to warm on failure — better than losing a potential lead
     return { score: 'warm', reason: 'Scoring failed, defaulting to warm' }
   }
 }
