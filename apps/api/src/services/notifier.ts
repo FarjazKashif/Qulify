@@ -63,9 +63,10 @@ export const notifyAgent = async (
   business: Business,
   leadId: string,
   history: ConversationMessage[],
-  score: ScoringResult
+  score: ScoringResult,
+  force: boolean = false
 ): Promise<void> => {
-  if (score.score === 'cold') return
+  if (score.score === 'cold' && !force) return
 
   const db = createDb(databaseUrl)
   const resend = new Resend(resendApiKey)

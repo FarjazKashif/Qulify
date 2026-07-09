@@ -6,11 +6,7 @@ import { createConversation, saveMessage, scoreLead, notifyAgent } from '../serv
 import type { Business } from '../db/schema'
 import { chatMessageRequestSchema, MAX_MESSAGES } from '@qulify/shared'
 import { checkRateLimit } from '../services/rate-limit'
-
-type ChatMessage = {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
+import { getToolDefinitions, executeTool } from '../ai/tools'
 
 type Env = {
   Bindings: {
@@ -26,14 +22,14 @@ type Env = {
   }
 }
 
-const chat = new Hono<Env>()
+const chatRoutes = new Hono<Env>()
 
 /**
  * POST /chat/start
  * Called when a visitor opens the chat bubble for the first time.
  * Creates a lead + conversation record in DB and returns IDs for the session.
  */
-chat.post('/start', async (c) => {
+chatRoutes.post('/start', async (c) => {
   try {
     const business = c.get('business')
 
@@ -56,7 +52,7 @@ chat.post('/start', async (c) => {
  * Saves messages to DB and triggers async scoring after each turn.
  * Expects: { message, history, conversationId, leadId }
  */
-chat.post('/message', async (c) => {
+chatRoutes.post('/message', async (c) => {
   try {
     const business = c.get('business')
     const rawBody = await c.req.json()
@@ -72,57 +68,85 @@ chat.post('/message', async (c) => {
     const { message, history, conversationId, leadId } = parseResult.data
 
     const allowed = await checkRateLimit(c.env.RATE_LIMIT_KV, conversationId)
-
     if (!allowed) {
-      return c.json(
-        { success: false, error: 'Too many messages. Please slow down.' },
-        429
-      )
+      return c.json({ success: false, error: 'Too many messages. Please slow down.' }, 429)
     }
 
     const groq = createGroqClient(c.env.GROQ_API_KEY)
     const systemPrompt = buildSystemPrompt(business)
     const recentHistory = history.slice(-MAX_MESSAGES)
 
-    // Get AI reply from Groq
-    const response = await groq.chat.completions.create({
+    // Build the message array Groq will see
+    const messages: any[] = [
+      { role: 'system', content: systemPrompt },
+      ...recentHistory,
+      { role: 'user', content: message }
+    ]
+
+    const toolContext = {
+      databaseUrl: c.env.DATABASE_URL,
+      business,
+      leadId,
+      conversationId,
+      resendApiKey: c.env.RESEND_API_KEY,
+      resendFromEmail: c.env.RESEND_FROM_EMAIL
+    }
+
+    // First call to Groq — it may respond with text, or ask for a tool
+    let response = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...recentHistory,
-        { role: 'user', content: message }
-      ],
+      messages,
+      tools: getToolDefinitions(),
       temperature: 0.7,
       max_tokens: 300
     })
 
-    const reply = response.choices[0]?.message?.content
+    let responseMessage = response.choices[0]?.message
+
+    // If Groq wants to use a tool, execute it and call Groq again with the result
+    if (responseMessage?.tool_calls && responseMessage.tool_calls.length > 0) {
+      messages.push(responseMessage)
+
+      for (const toolCall of responseMessage.tool_calls) {
+        const toolName = toolCall.function.name
+        const rawArgs = toolCall.function.arguments
+        const toolArgs = rawArgs && rawArgs !== 'null' ? JSON.parse(rawArgs) : {}
+
+        const result = await executeTool(toolName, toolArgs, toolContext)
+
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(result)
+        })
+      }
+
+      // Second call — Groq now has the real tool result, generates final reply
+      response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.7,
+        max_tokens: 300
+      })
+
+      responseMessage = response.choices[0]?.message
+    }
+
+    const reply = responseMessage?.content
     if (!reply) {
       return c.json({ success: false, error: 'No response from AI' }, 500)
     }
 
-    // Save both messages to DB (visitor + assistant)
     await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'visitor', message)
     await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'assistant', reply)
 
-    // Score the lead async after every message — don't await, don't block the reply
-    // We use waitUntil so Cloudflare Workers doesn't kill the async task early
     const fullHistory = [...recentHistory, { role: 'user', content: message }, { role: 'assistant', content: reply }]
 
     c.executionCtx.waitUntil(
       scoreLead(c.env.DATABASE_URL, c.env.GEMINI_API_KEY, leadId, fullHistory)
         .then(async (score) => {
-          // Only notify agent if lead is hot or warm
           if (score.score !== 'cold') {
-            await notifyAgent(
-              c.env.DATABASE_URL,
-              c.env.RESEND_API_KEY,
-              c.env.RESEND_FROM_EMAIL,
-              business,
-              leadId,
-              fullHistory,
-              score
-            )
+            await notifyAgent(c.env.DATABASE_URL, c.env.RESEND_API_KEY, c.env.RESEND_FROM_EMAIL, business, leadId, fullHistory, score)
           }
         })
         .catch((err) => console.error('[chat/message] Async scoring failed:', err))
@@ -136,4 +160,4 @@ chat.post('/message', async (c) => {
   }
 })
 
-export default chat
+export default chatRoutes

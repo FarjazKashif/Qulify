@@ -25,7 +25,7 @@ export const scoreLead = async (
       .join('\n')
 
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-2.5-flash',
       contents: buildScoringPrompt(conversationSummary),
       config: {
         responseMimeType: 'application/json',
