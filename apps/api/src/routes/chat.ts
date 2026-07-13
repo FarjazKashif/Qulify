@@ -7,6 +7,7 @@ import type { Business } from '../db/schema'
 import { chatMessageRequestSchema, MAX_MESSAGES } from '@qulify/shared'
 import { checkRateLimit } from '../services/rate-limit'
 import { getToolDefinitions, executeTool } from '../ai/tools'
+import { getLeadById } from '../services/lead'
 
 type Env = {
   Bindings: {
@@ -73,7 +74,20 @@ chatRoutes.post('/message', async (c) => {
     }
 
     const groq = createGroqClient(c.env.GROQ_API_KEY)
-    const systemPrompt = buildSystemPrompt(business)
+
+    const lead = await getLeadById(c.env.DATABASE_URL, business.id, leadId)
+
+    const knownInfo = {
+      name: lead?.name ?? null,
+      phone: lead?.phone ?? null,
+      email: lead?.email ?? null,
+      intent: lead?.intent ?? null,
+      budgetRange: lead?.budgetRange ?? null,
+      locationPreference: lead?.locationPreference ?? null,
+      timeline: lead?.timeline ?? null
+    }
+
+    const systemPrompt = buildSystemPrompt(business, knownInfo)
     const recentHistory = history.slice(-MAX_MESSAGES)
 
     // Build the message array Groq will see
@@ -137,10 +151,19 @@ chatRoutes.post('/message', async (c) => {
       return c.json({ success: false, error: 'No response from AI' }, 500)
     }
 
-    await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'visitor', message)
-    await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'assistant', reply)
+    // Defensive check: if Groq's tool-calling malformed and it leaked raw
+    // function-call syntax into the text response instead of a proper
+    // tool_calls object, strip it rather than showing it to the visitor.
+    const cleanedReply = reply.replace(/<function=.*?<\/function>/gs, '').trim()
 
-    const fullHistory = [...recentHistory, { role: 'user', content: message }, { role: 'assistant', content: reply }]
+    if (!cleanedReply) {
+      return c.json({ success: false, error: 'No response from AI' }, 500)
+    }
+
+    await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'visitor', message)
+    await saveMessage(c.env.DATABASE_URL, conversationId, business.id, 'assistant', cleanedReply)
+
+    const fullHistory = [...recentHistory, { role: 'user', content: message }, { role: 'assistant', content: cleanedReply }]
 
     c.executionCtx.waitUntil(
       scoreLead(c.env.DATABASE_URL, c.env.GEMINI_API_KEY, leadId, fullHistory)
@@ -152,7 +175,7 @@ chatRoutes.post('/message', async (c) => {
         .catch((err) => console.error('[chat/message] Async scoring failed:', err))
     )
 
-    return c.json({ success: true, reply })
+    return c.json({ success: true, reply: cleanedReply })
 
   } catch (error) {
     console.error('[chat/message] Error:', error)

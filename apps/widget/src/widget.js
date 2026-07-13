@@ -118,6 +118,10 @@
       font-size: 13px;
       cursor: pointer;
     }
+    .qlfy-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   `;
   shadow.appendChild(style);
 
@@ -208,6 +212,8 @@
     }
   }
 
+  sendBtn.disabled = true;
+
   bubble.addEventListener('click', async () => {
     isOpen = !isOpen;
     chatWindow.classList.toggle('open', isOpen);
@@ -215,6 +221,7 @@
     if (isOpen && !conversationId) {
       await startConversation();
       addMessage('assistant', 'Hi! How can I help you today?');
+      sendBtn.disabled = false;
     }
   });
 
@@ -224,7 +231,7 @@
   });
 
   inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !sendBtn.disabled) {
       const value = inputEl.value.trim();
       if (value) sendMessage(value);
     }

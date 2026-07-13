@@ -21,10 +21,17 @@ const inputSchema = z.object({
  */
 export const saveLeadTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'save_lead_info',
-  description: 'Saves or updates lead information whenever the visitor shares or corrects their name, phone, email, intent (buy/sell/rent), budget, location preference, property type, or timeline. Always call this again if the visitor updates or corrects previously shared information — do not assume old info is still accurate once corrected.',
+  description: 'Saves or updates lead information whenever the visitor shares or corrects their name, phone, email, intent (buy/sell/rent), budget, location preference, property type, or timeline. Always call this again if the visitor updates or corrects previously shared information — do not assume old info is still accurate once corrected. For propertyType, use your judgment to map what the visitor actually describes to the closest matching enum value (single-family, condo, townhome, multi-family, land, commercial) based on context — a generic "house" usually means single-family unless the conversation suggests otherwise (e.g. they mention it has multiple units, or shares walls). If you genuinely cannot tell, use unknown rather than guessing.',
   inputSchema,
   execute: async (input, context) => {
-    const updated = await updateLeadProfile(context.databaseUrl, context.business.id, context.leadId, input)
+    // Filter out null/undefined values — Groq sends null for fields it
+    // doesn't have info on, but we shouldn't overwrite existing DB values
+    // with null just because this particular message didn't mention them.
+    const cleanedInput = Object.fromEntries(
+      Object.entries(input).filter(([_, value]) => value !== null && value !== undefined)
+    )
+
+    const updated = await updateLeadProfile(context.databaseUrl, context.business.id, context.leadId, cleanedInput)
 
     if (!updated) {
       return { success: false, message: 'Failed to save lead information.' }
